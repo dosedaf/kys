@@ -1,12 +1,12 @@
 package src.controller;
 
-import src.view.MainView;
+import src.view.DashboardView;
 
 public class MainController {
-    private MainView view;
+    private DashboardView dashboard;
 
     public void init() {
-        view = new MainView();
-        view.setVisible(true);
+        dashboard = new DashboardView();
+        dashboard.setVisible(true);
     }
 }

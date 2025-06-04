@@ -11,8 +11,10 @@ public class Transaction {
    private String type;
    private int categoryId;
    private int accountId; 
+   private String categoryName;
+   private String accountName;
    
-   public Transaction(int id, String description, BigDecimal amount, LocalDate date, String type, int categoryId, int accountId) {
+   public Transaction(int id, String description, BigDecimal amount, LocalDate date, String type, int categoryId, int accountId, String categoryName, String accountName) {
        this.id = id;
        this.description = description;
        this.amount = amount;
@@ -20,6 +22,8 @@ public class Transaction {
        this.type = type;
        this.categoryId = categoryId;
        this.accountId = accountId;
+       this.categoryName = categoryName;
+       this.accountName = accountName;
    }
    
    public int getId() {
@@ -48,5 +52,13 @@ public class Transaction {
 
    public int getAccountId() {
        return this.accountId;
+   }
+
+   public String getCategoryName() {
+       return this.categoryName;
+   }
+
+   public String getAccountName() {
+       return this.categoryName;
    }
 }

@@ -38,9 +38,30 @@ public class TransactionDAO {
             list.add(t);
         }
     }
-
+    
     return list;
    }
+   
+   public Transaction getById(int id) throws SQLException {
+    String sql = "SELECT * FROM transactions WHERE id = ?";
+    try (Connection conn = DBConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+        stmt.setInt(1, id);
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                return new Transaction(
+                        rs.getInt("id"),
+                        rs.getString("description"),
+                        rs.getBigDecimal("amount"),
+                        rs.getDate("date").toLocalDate(),
+                        rs.getString("type"),
+                        rs.getInt("category_id"),
+                        rs.getInt("account_id")
+                );
+            }
+        }
+    }
+    return null;
+}
    
    public void delete(int id) throws SQLException {
        String sql = "DELETE FROM transactions WHERE id=?";

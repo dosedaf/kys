@@ -5,6 +5,9 @@ import java.sql.SQLException;
 import src.dao.AccountDAO;
 import src.model.Account;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class AccountController {
     private AccountDAO dao;
     
@@ -12,7 +15,7 @@ public class AccountController {
         dao = new AccountDAO();
     }
     
-    public void addCategory(Account a) {
+    public void addAccount(Account a) {
         try {
             dao.insert(a);
         } catch(SQLException e) {
@@ -20,15 +23,16 @@ public class AccountController {
         }
     }
 
-    public void getAccounts() {
+    public List<Account> getAccounts() {
         try {
-            dao.getAll();
+            return dao.getAll();
         } catch(SQLException e) {
             e.printStackTrace();
+            return new ArrayList<>();
         }
     }
 
-    public void updateCategory(Account a) {
+    public void updateAccount(Account a) {
         try {
             dao.update(a);
         } catch(SQLException e) {
@@ -36,7 +40,7 @@ public class AccountController {
         }
     }
 
-    public void deleteCategory(int id) {
+    public void deleteAccount(int id) {
         try {
             dao.delete(id);
         } catch(SQLException e) {
