@@ -1,40 +1,27 @@
-package src.view; // Assuming it's in the view package with other UI components
+package src.view;
 
-import java.math.BigDecimal; // For amount formatting if needed directly here
-import java.time.LocalDate; // For date formatting if needed directly here
-import java.time.format.DateTimeFormatter; // For formatting LocalDate
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.table.AbstractTableModel;
 
-import src.model.Transaction; // Your Transaction model
+import src.model.Transaction;
 
 public class TransactionTableModel extends AbstractTableModel {
-
-    private List<Transaction> transactions;
     private final String[] columnNames = {
-            "ID",
-            "Date",
-            "Description",
-            "Amount",
-            "Type",
-            "Category",
-            "Account"
+            "ID", "Date", "Description", "Amount", "Type", "Category", "Account"
     };
-    // Optional: A formatter for the date column
+    private List<Transaction> transactions;
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public TransactionTableModel() {
         this.transactions = new ArrayList<>();
     }
 
-    public TransactionTableModel(List<Transaction> transactions) {
-        this.transactions = new ArrayList<>(transactions); // Create a copy
-    }
-
     public void setTransactions(List<Transaction> transactions) {
-        this.transactions = new ArrayList<>(transactions); // Create a copy
+        this.transactions = new ArrayList<>(transactions); // Use a copy
         fireTableDataChanged(); // Notify the JTable that the data has changed
     }
 
@@ -42,7 +29,11 @@ public class TransactionTableModel extends AbstractTableModel {
         if (rowIndex >= 0 && rowIndex < transactions.size()) {
             return transactions.get(rowIndex);
         }
-        return null; // Or throw an exception
+        return null;
+    }
+
+    public List<Transaction> getTransactions() {
+        return new ArrayList<>(transactions); // Return a copy to prevent external modification
     }
 
     @Override
@@ -61,60 +52,39 @@ public class TransactionTableModel extends AbstractTableModel {
     }
 
     @Override
-    public Object getValueAt(int rowIndex, int columnIndex) {
-        Transaction transaction = transactions.get(rowIndex);
+    public Class<?> getColumnClass(int columnIndex) {
         switch (columnIndex) {
-            case 0: // ID
-                return transaction.getId();
-            case 1: // Date
-                LocalDate date = transaction.getDate();
-                return (date != null) ? date.format(dateFormatter) : null;
-            case 2: // Description
-                return transaction.getDescription();
-            case 3: // Amount
-                return transaction.getAmount(); // JTable will use default renderer for BigDecimal
-            case 4: // Type
-                return transaction.getType();
-            case 5: // Category Name
-                return transaction.getCategoryName(); // Assumes this is populated in your Transaction object
-            case 6: // Account Name
-                return transaction.getAccountName();   // Assumes this is populated in your Transaction object
-            default:
-                return null;
+            case 0: return Integer.class; // ID
+            case 1: return String.class;  // Date (formatted)
+            case 2: return String.class;  // Description
+            case 3: return BigDecimal.class; // Amount
+            case 4: return String.class;  // Type
+            case 5: return String.class;  // Category Name
+            case 6: return String.class;  // Account Name
+            default: return Object.class;
         }
     }
 
     @Override
-    public Class<?> getColumnClass(int columnIndex) {
+    public Object getValueAt(int rowIndex, int columnIndex) {
+        Transaction transaction = transactions.get(rowIndex);
         switch (columnIndex) {
-            case 0: // ID
-                return Integer.class;
-            case 1: // Date
-                return String.class; // Since we are formatting it
-            case 2: // Description
-                return String.class;
-            case 3: // Amount
-                return BigDecimal.class;
-            case 4: // Type
-                return String.class;
-            case 5: // Category Name
-                return String.class;
-            case 6: // Account Name
-                return String.class;
+            case 0:
+                return transaction.getId();
+            case 1:
+                return transaction.getDate() != null ? transaction.getDate().format(dateFormatter) : null;
+            case 2:
+                return transaction.getDescription();
+            case 3:
+                return transaction.getAmount();
+            case 4:
+                return transaction.getType();
+            case 5:
+                return transaction.getCategoryName() != null ? transaction.getCategoryName() : "N/A"; // From JOIN
+            case 6:
+                return transaction.getAccountName() != null ? transaction.getAccountName() : "N/A"; // From JOIN
             default:
-                return Object.class;
+                return null;
         }
     }
-
-    // Optional: if you want cells to be editable (we'll assume not for now)
-    // @Override
-    // public boolean isCellEditable(int rowIndex, int columnIndex) {
-    //     return false;
-    // }
-
-    // Optional: if cells were editable, you'd need setValueAt
-    // @Override
-    // public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
-    //     // Handle cell editing if implemented
-    // }
 }

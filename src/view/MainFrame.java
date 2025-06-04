@@ -1,88 +1,87 @@
-package src.view; // Assuming a 'view' subpackage for UI classes
+package src.view;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
 
 import javax.swing.JFrame;
-import javax.swing.JTabbedPane;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 
 import src.controller.AccountController;
 import src.controller.CategoryController;
-// Import controllers that will be passed to the panels
 import src.controller.TransactionController;
 
 public class MainFrame extends JFrame {
-
-    private JTabbedPane tabbedPane;
-    private TransactionController transactionController;
+    private DashboardPanel dashboardPanel;
     private AccountController accountController;
     private CategoryController categoryController;
+    private TransactionController transactionController;
 
-    // Panels for each tab
-    private TransactionPanel transactionPanel;
-    private AccountPanel accountPanel;
-    private SummaryPanel summaryPanel;
+    public MainFrame() {
+        this.accountController = new AccountController();
+        this.categoryController = new CategoryController();
+        this.transactionController = new TransactionController();
 
-    public MainFrame(TransactionController transactionController,
-                     AccountController accountController,
-                     CategoryController categoryController) {
-        this.transactionController = transactionController;
-        this.accountController = accountController;
-        this.categoryController = categoryController;
-
-        setTitle("KYS");
+        setTitle("KYS Financial Tracker");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(950, 750); // Adjusted size slightly for potentially more content
-        setMinimumSize(new Dimension(800, 600)); // Set a minimum size
-        setLocationRelativeTo(null); // Center the window
+        // Start with a reasonable compact size, can be resized
+        setSize(900, 700);
+        setLocationRelativeTo(null);
 
         initComponents();
     }
 
     private void initComponents() {
-        // Set a base background for the content pane, tabs will cover most of it
-        // This helps if there are any small gaps or if tabs are transparent (though not by default)
-        getContentPane().setBackground(new Color(240, 240, 240)); // A very light gray
+        dashboardPanel = new DashboardPanel(transactionController, accountController, categoryController, this);
+        add(dashboardPanel, BorderLayout.CENTER);
 
-        tabbedPane = new JTabbedPane();
-        // Potentially style the tabbed pane itself for a monochrome look
-        // UIManager.put("TabbedPane.selected", Color.WHITE);
-        // UIManager.put("TabbedPane.contentAreaColor", Color.WHITE);
-        // UIManager.put("TabbedPane.background", new Color(230,230,230)); // Slightly off-white for tab area
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+        JMenuItem exitItem = new JMenuItem("Exit");
+        exitItem.addActionListener(e -> System.exit(0));
+        fileMenu.add(exitItem);
+        menuBar.add(fileMenu);
 
-        // --- Transaction Panel ---
-        transactionPanel = new TransactionPanel(this.transactionController, this.accountController, this.categoryController);
-        // transactionPanel.setBackground(Color.WHITE); // Panel itself sets its background
-        tabbedPane.addTab("Transactions", null, transactionPanel, "Manage your income and expenses");
+        JMenu manageMenu = new JMenu("Manage");
+        // Temporarily comment out or remove these lines:
+        // JMenuItem manageCategoriesItem = new JMenuItem("Categories...");
+        // manageCategoriesItem.addActionListener(e -> openCategoryManagement());
+        // manageMenu.add(manageCategoriesItem);
 
+        // JMenuItem manageAccountsItem = new JMenuItem("Accounts...");
+        // manageAccountsItem.addActionListener(e -> openAccountManagement());
+        // manageMenu.add(manageAccountsItem);
 
-        // --- Account Panel ---
-        accountPanel = new AccountPanel(this.accountController);
-        // accountPanel.setBackground(Color.WHITE); // Panel itself sets its background
-        tabbedPane.addTab("Accounts", null, accountPanel, "Manage your financial accounts");
-
-
-        // --- Summary Panel ---
-        summaryPanel = new SummaryPanel(/* pass relevant controllers if SummaryPanel needs them now */);
-        // summaryPanel.setBackground(Color.WHITE); // Panel itself sets its background
-        tabbedPane.addTab("Summary", null, summaryPanel, "View financial summaries and reports");
-
-
-        // Add tabbedPane to the frame
-        add(tabbedPane, BorderLayout.CENTER);
+        // If you comment out all items in manageMenu, you can comment this too:
+        // menuBar.add(manageMenu);
+        setJMenuBar(menuBar);
     }
 
-    // Optional: Getters for panels if needed externally, though typically not.
-    public TransactionPanel getTransactionPanel() {
-        return transactionPanel;
+
+    private void openCategoryManagement() {
+        // Use the CategoryPanel logic, perhaps adapted into a JDialog
+        // For simplicity, reusing the CategoryDialog concept from previous response directly
+        // This dialog would manage CRUD for categories
+        CategoryManagementDialog categoryDialog = new CategoryManagementDialog(this, categoryController);
+        categoryDialog.setVisible(true);
+        // After dialog closes, you might need to refresh data in dashboard if it depends on categories
+        dashboardPanel.refreshUIData(); // Example call
     }
 
-    public AccountPanel getAccountPanel() {
-        return accountPanel;
+    private void openAccountManagement() {
+        AccountManagementDialog accountDialog = new AccountManagementDialog(this, accountController);
+        accountDialog.setVisible(true);
+        dashboardPanel.refreshUIData(); // Refresh account display and potentially transaction account names
     }
 
-    public SummaryPanel getSummaryPanel() {
-        return summaryPanel;
-    }
+
+    // Main method if you prefer it here instead of a separate Main.java
+    // public static void main(String[] args) {
+    //     try {
+    //         UIManager.setLookAndFeel(new com.formdev.flatlaf.FlatLightLaf());
+    //     } catch (Exception ex) {
+    //         System.err.println("Failed to initialize LaF");
+    //     }
+    //     SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
+    // }
 }

@@ -14,7 +14,19 @@ public class Transaction {
     private String categoryName;
     private String accountName;
 
-    public Transaction(int id, String description, BigDecimal amount, LocalDate date, String type, int categoryId, int accountId, String categoryName, String accountName) {
+    
+    public Transaction(String description, BigDecimal amount, LocalDate date, String type,
+                       int categoryId, int accountId) {
+        this.description = description;
+        this.amount = amount;
+        this.date = date;
+        this.type = type;
+        this.categoryId = categoryId;
+        this.accountId = accountId;
+    }
+
+    public Transaction(int id, String description, BigDecimal amount, LocalDate date, String type,
+                       int categoryId, int accountId, String categoryName, String accountName) {
         this.id = id;
         this.description = description;
         this.amount = amount;
@@ -22,16 +34,12 @@ public class Transaction {
         this.type = type;
         this.categoryId = categoryId;
         this.accountId = accountId;
-        this.categoryName = categoryName;
-        this.accountName = accountName;
+        this.categoryName = categoryName; // Ensure this assignment is present
+        this.accountName = accountName;   // Ensure this assignment is present
     }
-    
-    // Constructor used by TransactionDAO (7-argument version)
-    // You might want to consolidate or ensure names are handled if using this.
-    // For now, this constructor will result in null categoryName and accountName 
-    // unless the DAO specifically populates them after constructing.
-    // My updated TransactionDAO now attempts to populate these via JOINs,
-    // so ensure this constructor is used OR the 9-arg one is used by the DAO.
+
+    // Your 7-argument constructor can also exist if you have a specific use for it,
+    // but the two above are key for the current dialog and DAO logic.
     public Transaction(int id, String description, BigDecimal amount, LocalDate date, String type, int categoryId, int accountId) {
         this.id = id;
         this.description = description;
@@ -40,9 +48,8 @@ public class Transaction {
         this.type = type;
         this.categoryId = categoryId;
         this.accountId = accountId;
-        // categoryName and accountName will be null initially with this constructor
+        // this.categoryName and this.accountName will be null with this one
     }
-
 
     // --- GETTERS ---
     public int getId() {

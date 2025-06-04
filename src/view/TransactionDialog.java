@@ -1,8 +1,7 @@
 package src.view;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.awt.GridBagConstraints;
@@ -10,24 +9,24 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.text.ParseException;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.util.Calendar;
-import java.util.Date; // For JSpinner Date model
-import java.util.List;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.List; // Ensure this import is present
 
-import javax.swing.DefaultListCellRenderer;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
+import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JSpinner;
 import javax.swing.JTextField;
-import javax.swing.SpinnerDateModel;
-import javax.swing.border.EmptyBorder;
+import javax.swing.text.NumberFormatter;
 
 import src.controller.AccountController;
 import src.controller.CategoryController;
@@ -37,364 +36,342 @@ import src.model.Category;
 import src.model.Transaction;
 
 public class TransactionDialog extends JDialog {
-
-    private TransactionController transactionController;
-    private AccountController accountController;
-    private CategoryController categoryController;
-    private Transaction currentTransaction; // null if adding, existing object if editing
-    private Frame parentFrame; // To properly parent other dialogs like CategoryDialog
+    private transient TransactionController transactionController; // transient to avoid potential serialization issues if ever serialized
+    private transient AccountController accountController;
+    private transient CategoryController categoryController;
+    private transient Transaction currentTransaction; // The transaction being edited, or null if adding
+    private transient Runnable refreshCallback; // Callback to refresh data in the parent view
 
     private JTextField descriptionField;
-    private JTextField amountField;
-    private JSpinner dateSpinner;
+    private JFormattedTextField amountField;
+    private JTextField dateField;
     private JComboBox<String> typeComboBox;
-    private JComboBox<Object> categoryComboBox; // Can hold Category objects and a String "Add New"
-    private JComboBox<Account> accountComboBox;
+    private JComboBox<CategoryItem> categoryComboBox;
+    private JComboBox<AccountItem> accountComboBox;
     private JButton saveButton;
-    private JButton cancelButton;
+    private JButton cancelButton; // Added cancelButton variable
 
-    private final String ADD_NEW_CATEGORY_OPTION = "<Add New Category...>";
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE; // yyyy-MM-dd
 
-    public TransactionDialog(Frame owner,
-                             TransactionController transactionController,
-                             AccountController accountController,
-                             CategoryController categoryController,
-                             Transaction transactionToEdit) {
-        super(owner, true); // true for modal dialog
-        this.parentFrame = owner;
-        this.transactionController = transactionController;
-        this.accountController = accountController;
-        this.categoryController = categoryController;
+    // Wrapper class for displaying Category objects in JComboBox
+    private static class CategoryItem {
+        private final int id;
+        private final String name;
+
+        public CategoryItem(int id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    // Wrapper class for displaying Account objects in JComboBox
+    private static class AccountItem {
+        private final int id;
+        private final String name;
+
+        public AccountItem(int id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    public TransactionDialog(Frame owner, TransactionController tCtrl, AccountController aCtrl, CategoryController cCtrl,
+                             Transaction transactionToEdit, Runnable onSaveCallback) {
+        super(owner, transactionToEdit == null ? "Add Transaction" : "Edit Transaction", true); // Modal
+        this.transactionController = tCtrl;
+        this.accountController = aCtrl;
+        this.categoryController = cCtrl;
         this.currentTransaction = transactionToEdit;
-
-        setTitle(currentTransaction == null ? "Add New Transaction" : "Edit Transaction");
-        // setSize(450, 350); // Adjust size as needed
-        setLayout(new BorderLayout(10,10));
-        ((JPanel) getContentPane()).setBorder(new EmptyBorder(10, 10, 10, 10)); // Padding
-        getContentPane().setBackground(Color.WHITE);
-        setLocationRelativeTo(owner);
-        setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        this.refreshCallback = onSaveCallback;
 
         initComponents();
         populateComboBoxes();
-
-        if (currentTransaction != null) {
-            populateFieldsForEdit();
+        if (this.currentTransaction != null) {
+            populateFields();
         }
-        pack(); // Adjust dialog size to fit components
+        pack(); // Adjust dialog size to components
+        setMinimumSize(new Dimension(450, 0)); // Ensure a minimum width
+        setLocationRelativeTo(owner); // Center on owner
     }
 
     private void initComponents() {
+        setLayout(new BorderLayout(10, 10)); // Gaps between components
+
         JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBackground(Color.WHITE);
+        formPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Padding
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5); // Padding between components
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5); // Spacing between components
         gbc.anchor = GridBagConstraints.WEST;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
 
         // Description
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        formPanel.add(new JLabel("Description:"), gbc);
-        gbc.gridx = 1;
-        gbc.gridwidth = 2; // Span two columns
+        gbc.gridx = 0; gbc.gridy = 0; formPanel.add(new JLabel("Description:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 0; gbc.weightx = 1.0; // Allow field to expand
         descriptionField = new JTextField(25);
         formPanel.add(descriptionField, gbc);
-        gbc.gridwidth = 1; // Reset
 
         // Amount
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        formPanel.add(new JLabel("Amount:"), gbc);
-        gbc.gridx = 1;
-        gbc.gridwidth = 2;
-        amountField = new JTextField(15);
+        gbc.gridx = 0; gbc.gridy = 1; formPanel.add(new JLabel("Amount:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 1;
+        NumberFormat amountFormat = DecimalFormat.getNumberInstance();
+        amountFormat.setMinimumFractionDigits(2);
+        amountFormat.setMaximumFractionDigits(2);
+        amountFormat.setGroupingUsed(false); // Avoid commas like 1,000.00 for easier parsing if needed
+
+        NumberFormatter amountFormatter = new NumberFormatter(amountFormat);
+        amountFormatter.setValueClass(BigDecimal.class);
+        amountFormatter.setAllowsInvalid(false); // Prevents user from typing invalid chars directly
+        amountFormatter.setMinimum(BigDecimal.ZERO); // Amount must be non-negative
+
+        amountField = new JFormattedTextField(amountFormatter);
+        amountField.setColumns(15);
+        amountField.setValue(BigDecimal.ZERO); // Default value
         formPanel.add(amountField, gbc);
-        gbc.gridwidth = 1;
 
         // Date
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        formPanel.add(new JLabel("Date:"), gbc);
-        gbc.gridx = 1;
-        gbc.gridwidth = 2;
-        // Using JSpinner for date selection
-        SpinnerDateModel dateModel = new SpinnerDateModel(new Date(), null, null, Calendar.DAY_OF_MONTH);
-        dateSpinner = new JSpinner(dateModel);
-        JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(dateSpinner, "yyyy-MM-dd");
-        dateSpinner.setEditor(dateEditor);
-        formPanel.add(dateSpinner, gbc);
-        gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 2; formPanel.add(new JLabel("Date (YYYY-MM-DD):"), gbc);
+        gbc.gridx = 1; gbc.gridy = 2;
+        dateField = new JTextField(15);
+        if (currentTransaction == null) { // Default to today for new transactions
+            dateField.setText(DATE_FORMATTER.format(LocalDate.now()));
+        }
+        formPanel.add(dateField, gbc);
 
         // Type
-        gbc.gridx = 0;
-        gbc.gridy = 3;
-        formPanel.add(new JLabel("Type:"), gbc);
-        gbc.gridx = 1;
-        gbc.gridwidth = 2;
-        typeComboBox = new JComboBox<>(new String[]{"Expense", "Income"});
+        gbc.gridx = 0; gbc.gridy = 3; formPanel.add(new JLabel("Type:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 3;
+        typeComboBox = new JComboBox<>(new String[]{"EXPENSE", "INCOME"}); // Match DB ENUM
         formPanel.add(typeComboBox, gbc);
-        gbc.gridwidth = 1;
 
         // Category
-        gbc.gridx = 0;
-        gbc.gridy = 4;
-        formPanel.add(new JLabel("Category:"), gbc);
-        gbc.gridx = 1;
-        gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 4; formPanel.add(new JLabel("Category:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 4;
         categoryComboBox = new JComboBox<>();
         formPanel.add(categoryComboBox, gbc);
-        gbc.gridwidth = 1;
 
         // Account
-        gbc.gridx = 0;
-        gbc.gridy = 5;
-        formPanel.add(new JLabel("Account:"), gbc);
-        gbc.gridx = 1;
-        gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 5; formPanel.add(new JLabel("Account:"), gbc);
+        gbc.gridx = 1; gbc.gridy = 5;
         accountComboBox = new JComboBox<>();
         formPanel.add(accountComboBox, gbc);
-        gbc.gridwidth = 1;
 
-        // --- Button Panel ---
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
-        buttonPanel.setBackground(Color.WHITE);
+        add(formPanel, BorderLayout.CENTER);
 
+        // Buttons Panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
         saveButton = new JButton("Save");
-        styleButton(saveButton);
-        cancelButton = new JButton("Cancel");
-        styleButton(cancelButton);
-
+        cancelButton = new JButton("Cancel"); // Initialize here
         buttonPanel.add(saveButton);
         buttonPanel.add(cancelButton);
-
-        // Add panels to dialog
-        add(formPanel, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.SOUTH);
 
-        // --- Action Listeners ---
+        // Action Listeners
         saveButton.addActionListener(e -> saveTransaction());
-        cancelButton.addActionListener(e -> dispose()); // Close dialog
-
-        categoryComboBox.addActionListener(e -> {
-            if (ADD_NEW_CATEGORY_OPTION.equals(categoryComboBox.getSelectedItem())) {
-                handleAddNewCategory();
-            }
-        });
-    }
-
-    private void styleButton(JButton button) {
-        button.setBackground(new Color(220, 220, 220));
-        button.setForeground(Color.BLACK);
-        button.setFocusPainted(false);
+        cancelButton.addActionListener(e -> setVisible(false)); // Close dialog on cancel
     }
 
     private void populateComboBoxes() {
-        // Populate Account ComboBox
         try {
-            List<Account> accounts = accountController.getAccounts();
-            for (Account acc : accounts) {
-                accountComboBox.addItem(acc);
-            }
-            // Custom renderer for Account ComboBox
-            accountComboBox.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                    super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                    if (value instanceof Account) {
-                        setText(((Account) value).getName());
-                    }
-                    return this;
-                }
-            });
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading accounts: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
-        }
-
-        // Populate Category ComboBox
-        populateCategoryDropdown();
-    }
-
-    private void populateCategoryDropdown() {
-        Object selectedItem = categoryComboBox.getSelectedItem(); // Preserve selection if possible
-
-        categoryComboBox.removeAllItems(); // Clear previous items
-        try {
+            // Populate Categories ComboBox
             List<Category> categories = categoryController.getCategories();
+            categoryComboBox.removeAllItems(); // Clear previous items
+            String selectedType = typeComboBox.getSelectedItem() != null ? typeComboBox.getSelectedItem().toString() : "EXPENSE";
+            // Filter categories based on selected transaction type (Expense/Income)
             for (Category cat : categories) {
-                categoryComboBox.addItem(cat);
+                // Assuming Category model has getType() like "EXPENSE_CATEGORY" or "INCOME_CATEGORY"
+                if ((selectedType.equals("EXPENSE") && cat.getType().equals("EXPENSE_CATEGORY")) ||
+                    (selectedType.equals("INCOME") && cat.getType().equals("INCOME_CATEGORY"))) {
+                    categoryComboBox.addItem(new CategoryItem(cat.getId(), cat.getName()));
+                }
+            }
+
+            // Populate Accounts ComboBox
+            List<Account> accounts = accountController.getAccounts();
+            accountComboBox.removeAllItems(); // Clear previous items
+            for (Account acc : accounts) {
+                accountComboBox.addItem(new AccountItem(acc.getId(), acc.getName()));
             }
         } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading categories: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error loading categories/accounts: " + e.getMessage(),
+                    "Initialization Error", JOptionPane.ERROR_MESSAGE);
         }
-        categoryComboBox.addItem(ADD_NEW_CATEGORY_OPTION); // Add special option
 
-        // Custom renderer for Category ComboBox
-        categoryComboBox.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value instanceof Category) {
-                    setText(((Category) value).getName());
-                } else if (value instanceof String) { // For "<Add New Category...>"
-                    setText((String) value);
+        // Add action listener to typeComboBox to re-filter categories when type changes
+        typeComboBox.addActionListener(e -> {
+            String selectedTxnType = typeComboBox.getSelectedItem().toString();
+            try {
+                List<Category> categories = categoryController.getCategories();
+                categoryComboBox.removeAllItems();
+                for (Category cat : categories) {
+                    if ((selectedTxnType.equals("EXPENSE") && cat.getType().equals("EXPENSE_CATEGORY")) ||
+                        (selectedTxnType.equals("INCOME") && cat.getType().equals("INCOME_CATEGORY"))) {
+                        categoryComboBox.addItem(new CategoryItem(cat.getId(), cat.getName()));
+                    }
                 }
-                return this;
+                // Reselect if currentTransaction is being edited and matches new filter
+                if (currentTransaction != null && categoryComboBox.getItemCount() > 0) {
+                     for (int i = 0; i < categoryComboBox.getItemCount(); i++) {
+                        if (categoryComboBox.getItemAt(i).getId() == currentTransaction.getCategoryId()) {
+                            CategoryItem item = categoryComboBox.getItemAt(i);
+                            // Check if this category still matches the selected transaction type
+                            Category originalCat = categories.stream().filter(c -> c.getId() == item.getId()).findFirst().orElse(null);
+                            if(originalCat != null && 
+                               ((selectedTxnType.equals("EXPENSE") && originalCat.getType().equals("EXPENSE_CATEGORY")) ||
+                                (selectedTxnType.equals("INCOME") && originalCat.getType().equals("INCOME_CATEGORY")))) {
+                                categoryComboBox.setSelectedIndex(i);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+
+            } catch (SQLException ex) {
+                 JOptionPane.showMessageDialog(this, "Error reloading categories: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
-
-        // Try to re-select the previously selected item if it's still valid
-        if (selectedItem instanceof Category) {
-            for (int i = 0; i < categoryComboBox.getItemCount(); i++) {
-                if (categoryComboBox.getItemAt(i) instanceof Category &&
-                    ((Category) categoryComboBox.getItemAt(i)).getId() == ((Category) selectedItem).getId()) {
-                    categoryComboBox.setSelectedIndex(i);
-                    break;
-                }
-            }
-        } else if (selectedItem == null && categoryComboBox.getItemCount() > 1) {
-             // if nothing was selected, and we have categories, select the first actual category
-            if(categoryComboBox.getItemAt(0) instanceof Category){
-                categoryComboBox.setSelectedIndex(0);
-            }
-        }
     }
 
+    private void populateFields() {
+        if (currentTransaction == null) return;
 
-    private void populateFieldsForEdit() {
         descriptionField.setText(currentTransaction.getDescription());
-        amountField.setText(currentTransaction.getAmount().toPlainString());
+        amountField.setValue(currentTransaction.getAmount());
+        dateField.setText(DATE_FORMATTER.format(currentTransaction.getDate()));
+        typeComboBox.setSelectedItem(currentTransaction.getType().toUpperCase()); // Ensure case matches JComboBox items
 
-        // Set Date for JSpinner
-        LocalDate ld = currentTransaction.getDate();
-        if (ld != null) {
-            Date date = Date.from(ld.atStartOfDay(ZoneId.systemDefault()).toInstant());
-            dateSpinner.setValue(date);
+        // Trigger category re-filter based on the transaction's type
+        // typeComboBox.getActionListeners()[typeComboBox.getActionListeners().length -1].actionPerformed(null); // This is a bit hacky
+        // A cleaner way is to just call the filtering logic again:
+        try {
+            String selectedTxnType = currentTransaction.getType().toUpperCase();
+            List<Category> categories = categoryController.getCategories();
+            categoryComboBox.removeAllItems();
+            for (Category cat : categories) {
+                if ((selectedTxnType.equals("EXPENSE") && cat.getType().equals("EXPENSE_CATEGORY")) ||
+                    (selectedTxnType.equals("INCOME") && cat.getType().equals("INCOME_CATEGORY"))) {
+                    categoryComboBox.addItem(new CategoryItem(cat.getId(), cat.getName()));
+                }
+            }
+        } catch (SQLException ex) {
+             JOptionPane.showMessageDialog(this, "Error reloading categories for edit: " + ex.getMessage(),
+                "Error", JOptionPane.ERROR_MESSAGE);
         }
 
-        typeComboBox.setSelectedItem(currentTransaction.getType());
 
-        // Select Account in ComboBox
-        for (int i = 0; i < accountComboBox.getItemCount(); i++) {
-            Account acc = accountComboBox.getItemAt(i);
-            if (acc.getId() == currentTransaction.getAccountId()) {
-                accountComboBox.setSelectedIndex(i);
+        // Select category in ComboBox
+        for (int i = 0; i < categoryComboBox.getItemCount(); i++) {
+            if (categoryComboBox.getItemAt(i).getId() == currentTransaction.getCategoryId()) {
+                categoryComboBox.setSelectedIndex(i);
                 break;
             }
         }
-
-        // Select Category in ComboBox
-        // Need to iterate and match by ID as the objects might be different instances
-        // if list was reloaded
-        for (int i = 0; i < categoryComboBox.getItemCount(); i++) {
-            Object item = categoryComboBox.getItemAt(i);
-            if (item instanceof Category) {
-                Category cat = (Category) item;
-                if (cat.getId() == currentTransaction.getCategoryId()) {
-                    categoryComboBox.setSelectedItem(cat); // Use setSelectedItem to trigger renderer correctly
-                    break;
-                }
-            }
-        }
-    }
-
-    private void handleAddNewCategory() {
-        // We will create CategoryDialog.java next
-        CategoryDialog categoryDialog = new CategoryDialog(parentFrame, categoryController);
-        categoryDialog.setVisible(true);
-
-        // After CategoryDialog is closed, repopulate the category ComboBox
-        // And try to select the newly added category if available (CategoryDialog would need to return it or allow fetching it)
-        Category newCategory = categoryDialog.getNewCategory(); // Assumes CategoryDialog has such a method
-        populateCategoryDropdown(); // Repopulate
-        if (newCategory != null) {
-            for (int i = 0; i < categoryComboBox.getItemCount(); i++) {
-                if (categoryComboBox.getItemAt(i) instanceof Category &&
-                    ((Category) categoryComboBox.getItemAt(i)).getId() == newCategory.getId()) {
-                    categoryComboBox.setSelectedIndex(i);
-                    break;
-                }
-            }
-        } else {
-            // If no new category was added, or dialog cancelled, reselect a sensible default or previous
-            if (categoryComboBox.getItemCount() > 0 && !(categoryComboBox.getItemAt(0) instanceof String)) {
-                 categoryComboBox.setSelectedIndex(0); // Select first actual category
+        // Select account in ComboBox
+        for (int i = 0; i < accountComboBox.getItemCount(); i++) {
+            if (accountComboBox.getItemAt(i).getId() == currentTransaction.getAccountId()) {
+                accountComboBox.setSelectedIndex(i);
+                break;
             }
         }
     }
 
     private void saveTransaction() {
-        // --- Validation ---
         String description = descriptionField.getText().trim();
         if (description.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Description cannot be empty.", "Validation Error", JOptionPane.ERROR_MESSAGE);
-            descriptionField.requestFocus();
+            descriptionField.requestFocusInWindow();
             return;
         }
 
         BigDecimal amount;
         try {
-            amount = new BigDecimal(amountField.getText().trim());
-            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-                JOptionPane.showMessageDialog(this, "Amount must be a positive number.", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                amountField.requestFocus();
+            amountField.commitEdit(); // Ensure current text is parsed
+            amount = (BigDecimal) amountField.getValue();
+            if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) { // Amount must be non-negative
+                JOptionPane.showMessageDialog(this, "Amount must be a non-negative number.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+                amountField.requestFocusInWindow();
                 return;
             }
-        } catch (NumberFormatException e) {
+        } catch (ParseException e) {
             JOptionPane.showMessageDialog(this, "Invalid amount format. Please enter a valid number.", "Validation Error", JOptionPane.ERROR_MESSAGE);
-            amountField.requestFocus();
+            amountField.requestFocusInWindow();
             return;
         }
 
-        Date selectedDate = (Date) dateSpinner.getValue();
-        LocalDate transactionDate = selectedDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate date;
+        try {
+            date = LocalDate.parse(dateField.getText().trim(), DATE_FORMATTER);
+        } catch (DateTimeParseException e) {
+            JOptionPane.showMessageDialog(this, "Invalid date format. Please use YYYY-MM-DD.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            dateField.requestFocusInWindow();
+            return;
+        }
 
         String type = (String) typeComboBox.getSelectedItem();
+        CategoryItem selectedCategoryItem = (CategoryItem) categoryComboBox.getSelectedItem();
+        AccountItem selectedAccountItem = (AccountItem) accountComboBox.getSelectedItem();
 
-        Object selectedCategoryObj = categoryComboBox.getSelectedItem();
-        if (!(selectedCategoryObj instanceof Category)) {
-            JOptionPane.showMessageDialog(this, "Please select a valid category.", "Validation Error", JOptionPane.ERROR_MESSAGE);
-            categoryComboBox.requestFocus();
+        if (selectedCategoryItem == null) {
+            JOptionPane.showMessageDialog(this, "Please select a category.", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            categoryComboBox.requestFocusInWindow();
             return;
         }
-        Category selectedCategory = (Category) selectedCategoryObj;
-
-        Account selectedAccount = (Account) accountComboBox.getSelectedItem();
-        if (selectedAccount == null) { // Should not happen if list is populated
+        if (selectedAccountItem == null) {
             JOptionPane.showMessageDialog(this, "Please select an account.", "Validation Error", JOptionPane.ERROR_MESSAGE);
-            accountComboBox.requestFocus();
+            accountComboBox.requestFocusInWindow();
             return;
         }
-
-        // --- Create or Update Transaction Object ---
-        Transaction transaction = new Transaction(
-            0, // ID will be set by DB for new, or use currentTransaction.getId() for edit
-            description,
-            amount,
-            transactionDate,
-            type,
-            selectedCategory.getId(),
-            selectedAccount.getId(),
-            selectedCategory.getName(), // For DTO consistency, though DAO might re-fetch
-            selectedAccount.getName()   // For DTO consistency
-        );
-
 
         try {
-            if (currentTransaction == null) { // Adding new transaction
-                transactionController.addTransaction(transaction);
+            if (currentTransaction == null) { // Adding a new transaction
+                // This is where the constructor from Error 1 is called
+                Transaction newTransaction = new Transaction(
+                        description, amount, date, type,
+                        selectedCategoryItem.getId(), selectedAccountItem.getId()
+                );
+                transactionController.addTransaction(newTransaction);
                 JOptionPane.showMessageDialog(this, "Transaction added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } else { // Editing existing transaction
-                transaction.setId(currentTransaction.getId()); // Set the ID for update
-                transactionController.updateTransaction(transaction);
+            } else { // Updating an existing transaction
+                currentTransaction.setDescription(description);
+                currentTransaction.setAmount(amount);
+                currentTransaction.setDate(date);
+                currentTransaction.setType(type);
+                currentTransaction.setCategoryId(selectedCategoryItem.getId());
+                currentTransaction.setAccountId(selectedAccountItem.getId());
+                // categoryName and accountName are not directly set here as they are for display from DB.
+                // The backend controller handles updating the core transaction fields.
+                transactionController.updateTransaction(currentTransaction);
                 JOptionPane.showMessageDialog(this, "Transaction updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             }
-            dispose(); // Close dialog on successful save
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error saving transaction: " + e.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
-            e.printStackTrace();
+            if (refreshCallback != null) {
+                refreshCallback.run(); // Call the refresh method on the parent panel
+            }
+            setVisible(false); // Close the dialog
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error saving transaction: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception ex) { // Catch any other unexpected error during save
+            JOptionPane.showMessageDialog(this, "An unexpected error occurred: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace(); // Print stack trace for debugging
         }
     }
-}
+} // This should be the final closing brace of the class.
