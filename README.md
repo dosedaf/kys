@@ -1,6 +1,6 @@
 # KYS Financial Tracker
 
-KYS (Keep Your Savings) is a clean, modern, and functional desktop application designed for personal financial tracking. Built with Java Swing, it provides a straightforward way to manage your income and expenses across different accounts and categories. The application connects to a MariaDB database to ensure data persistence and integrity.
+KYS (Know Your Shit) is a clean, modern, and functional desktop application designed for personal financial tracking. Built with Java Swing, it provides a straightforward way to manage your income and expenses across different accounts and categories. The application connects to a MariaDB database to ensure data persistence and integrity.
 
 ![Java](https://img.shields.io/badge/Java-11%2B-blue?logo=java&logoColor=white)
 ![Swing](https://img.shields.io/badge/UI-Java%20Swing-orange)
