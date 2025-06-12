@@ -116,4 +116,12 @@ public class TransactionController {
             }
         }
     }
+
+    public boolean hasTransactionsForAccount(int accountId) throws SQLException {
+        return transactionDAO.countByAccountId(accountId) > 0;
+    }
+
+    public boolean hasTransactionsForCategory(int categoryId) throws SQLException {
+        return transactionDAO.countByCategoryId(categoryId) > 0;
+    }
 }

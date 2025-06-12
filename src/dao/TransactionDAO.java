@@ -213,4 +213,31 @@ public class TransactionDAO {
             }
         }
     }
+    
+    public int countByAccountId(int accountId) throws SQLException {
+    String sql = "SELECT COUNT(*) FROM transactions WHERE account_id = ?";
+    try (Connection conn = DBConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        stmt.setInt(1, accountId);
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+    }
+    return 0;
+}
+   public int countByCategoryId(int categoryId) throws SQLException {
+    String sql = "SELECT COUNT(*) FROM transactions WHERE category_id = ?";
+    try (Connection conn = DBConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        stmt.setInt(1, categoryId);
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        }
+    }
+    return 0;
+}
 }

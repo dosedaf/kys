@@ -19,16 +19,19 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 
 import src.controller.AccountController;
+import src.controller.TransactionController;
 import src.model.Account;
 
 public class AccountManagementDialog extends JDialog {
     private AccountController accountController;
+    private TransactionController transactionController;
     private JTable accountTable;
     private AccountTableModel accountTableModel;
 
-    public AccountManagementDialog(Frame owner, AccountController controller) {
+    public AccountManagementDialog(Frame owner, AccountController accCtrl, TransactionController transCtrl) {
         super(owner, "Manage Accounts", true);
-        this.accountController = controller;
+        this.accountController = accCtrl;
+        this.transactionController = transCtrl;
         initComponents();
         loadAccounts();
         setSize(500, 400);
@@ -103,17 +106,27 @@ public class AccountManagementDialog extends JDialog {
         }
 
         Account selectedAccount = accountTableModel.getAccountAt(selectedRow);
-        int confirmation = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to delete account '" + selectedAccount.getName() + "'?\nThis will fail if it is used by any transactions.",
-                "Confirm Deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
-        if (confirmation == JOptionPane.YES_OPTION) {
-            try {
+        try {
+            if (transactionController.hasTransactionsForAccount(selectedAccount.getId())) {
+                JOptionPane.showMessageDialog(this,
+                    "This account cannot be deleted because it has transactions linked to it.\n" +
+                    "Please reassign or delete the associated transactions first.",
+                    "Deletion Prevented",
+                    JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int confirmation = JOptionPane.showConfirmDialog(this,
+                    "Are you sure you want to delete account '" + selectedAccount.getName() + "'?",
+                    "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+
+            if (confirmation == JOptionPane.YES_OPTION) {
                 accountController.deleteAccount(selectedAccount.getId());
                 loadAccounts();
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error deleting account: " + ex.getMessage() + "\nIt may be in use by existing transactions.", "Database Error", JOptionPane.ERROR_MESSAGE);
             }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "An error occurred: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

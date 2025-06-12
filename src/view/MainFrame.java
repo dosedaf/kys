@@ -56,13 +56,15 @@ public class MainFrame extends JFrame {
     }
 
     private void openCategoryManagement() {
-        CategoryManagementDialog categoryDialog = new CategoryManagementDialog(this, categoryController);
+        CategoryManagementDialog categoryDialog = new CategoryManagementDialog(this, categoryController,
+                transactionController);
         categoryDialog.setVisible(true);
         dashboardPanel.refreshUIData();
     }
 
     private void openAccountManagement() {
-        AccountManagementDialog accountDialog = new AccountManagementDialog(this, accountController);
+        AccountManagementDialog accountDialog = new AccountManagementDialog(this, accountController,
+                transactionController);
         accountDialog.setVisible(true);
         dashboardPanel.refreshUIData();
     }

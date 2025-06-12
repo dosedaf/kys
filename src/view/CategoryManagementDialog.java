@@ -19,16 +19,19 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 
 import src.controller.CategoryController;
+import src.controller.TransactionController;
 import src.model.Category;
 
 public class CategoryManagementDialog extends JDialog {
     private CategoryController categoryController;
+    private TransactionController transactionController;
     private JTable categoryTable;
     private CategoryTableModel categoryTableModel;
 
-    public CategoryManagementDialog(Frame owner, CategoryController controller) {
+    public CategoryManagementDialog(Frame owner, CategoryController catCtrl, TransactionController transCtrl) {
         super(owner, "Manage Categories", true);
-        this.categoryController = controller;
+        this.categoryController = catCtrl;
+        this.transactionController = transCtrl;
         initComponents();
         loadCategories();
         setSize(500, 400);
@@ -101,17 +104,26 @@ public class CategoryManagementDialog extends JDialog {
         }
 
         Category selectedCategory = categoryTableModel.getCategoryAt(selectedRow);
-        int confirmation = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to delete category '" + selectedCategory.getName() + "'?\nThis will fail if it is used by any transactions.",
-                "Confirm Deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
-        if (confirmation == JOptionPane.YES_OPTION) {
-            try {
+        try {
+            if (transactionController.hasTransactionsForCategory(selectedCategory.getId())) {
+                JOptionPane.showMessageDialog(this,
+                        "This category cannot be deleted because it has transactions linked to it.",
+                        "Deletion Prevented",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int confirmation = JOptionPane.showConfirmDialog(this,
+                    "Are you sure you want to delete category '" + selectedCategory.getName() + "'?",
+                    "Confirm Deletion", JOptionPane.YES_NO_OPTION);
+
+            if (confirmation == JOptionPane.YES_OPTION) {
                 categoryController.deleteCategory(selectedCategory.getId());
                 loadCategories();
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(this, "Error deleting category: " + ex.getMessage() + "\nIt may be in use by existing transactions.", "Database Error", JOptionPane.ERROR_MESSAGE);
             }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "An error occurred: " + ex.getMessage(), "Database Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }
